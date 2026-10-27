@@ -29,10 +29,8 @@ class _NotesPageState extends State<NotesPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<String> _notes = [];
-  // -1 означает, что сейчас создаётся новая заметка.
   int _editingIndex = -1;
 
-  // Одна кнопка добавляет новую заметку или сохраняет изменения.
   void _saveNote() {
     final String text = _controller.text.trim();
     if (text.isEmpty) {
@@ -54,7 +52,6 @@ class _NotesPageState extends State<NotesPage> {
     FocusScope.of(context).unfocus();
   }
 
-  // Переносим текст выбранной заметки в поле ввода.
   void _editNote(int index) {
     setState(() {
       _editingIndex = index;
@@ -78,7 +75,6 @@ class _NotesPageState extends State<NotesPage> {
         _editingIndex = -1;
         _controller.clear();
       } else if (_editingIndex > index) {
-        // После удаления предыдущей записи индексы сдвигаются.
         _editingIndex--;
       }
     });

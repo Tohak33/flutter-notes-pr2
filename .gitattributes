@@ -9,3 +9,6 @@
 *.pdf binary
 *.png binary
 *.zip binary
+*.docx binary
+.gitattributes text eol=lf
+*.html text eol=lf
