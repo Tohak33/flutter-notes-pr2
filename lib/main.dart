@@ -25,11 +25,18 @@ class NotesPage extends StatefulWidget {
   State<NotesPage> createState() => _NotesPageState();
 }
 
+class _Note {
+  _Note(this.text);
+
+  String text;
+  bool isImportant = false;
+}
+
 class _NotesPageState extends State<NotesPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<String> _notes = [];
-  int _editingIndex = -1;
+  final List<_Note> _notes = [];
+  _Note? _editingNote;
 
   void _saveNote() {
     final String text = _controller.text.trim();
@@ -41,43 +48,171 @@ class _NotesPageState extends State<NotesPage> {
     }
 
     setState(() {
-      if (_editingIndex == -1) {
-        _notes.add(text);
+      final note = _editingNote;
+      if (note == null) {
+        _notes.add(_Note(text));
       } else {
-        _notes[_editingIndex] = text;
+        note.text = text;
       }
-      _editingIndex = -1;
+      _editingNote = null;
       _controller.clear();
     });
     FocusScope.of(context).unfocus();
   }
 
-  void _editNote(int index) {
+  void _editNote(_Note note) {
     setState(() {
-      _editingIndex = index;
-      _controller.text = _notes[index];
+      _editingNote = note;
+      _controller.text = note.text;
     });
     _scrollController.jumpTo(0);
   }
 
   void _cancelEditing() {
     setState(() {
-      _editingIndex = -1;
+      _editingNote = null;
       _controller.clear();
     });
     FocusScope.of(context).unfocus();
   }
 
-  void _deleteNote(int index) {
+  void _deleteNote(_Note note) {
     setState(() {
-      _notes.removeAt(index);
-      if (_editingIndex == index) {
-        _editingIndex = -1;
+      _notes.remove(note);
+      if (_editingNote == note) {
+        _editingNote = null;
         _controller.clear();
-      } else if (_editingIndex > index) {
-        _editingIndex--;
       }
     });
+  }
+
+  void _viewNote(_Note note) {
+    FocusScope.of(context).unfocus();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        title: const Text('Просмотр заметки'),
+        content: SelectableText(note.text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _noteCard(_Note note, int number) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: ObjectKey(note),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Dismissible(
+        key: ObjectKey(note),
+        direction: note.isImportant
+            ? DismissDirection.horizontal
+            : DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: colors.secondaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.star_outline),
+        ),
+        secondaryBackground: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: colors.errorContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
+        ),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.endToStart) {
+            return true;
+          }
+          if (note.isImportant) {
+            setState(() => note.isImportant = false);
+            _showMessage('Заметка снова обычная');
+          }
+          return false;
+        },
+        onDismissed: (_) {
+          _deleteNote(note);
+          _showMessage('Заметка удалена');
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: note.isImportant
+                ? Colors.amber.shade100
+                : colors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _editingNote == note ? Colors.teal : Colors.grey.shade300,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _viewNote(note),
+                  onDoubleTap: () => setState(() => note.isImportant = true),
+                  onLongPress: () => _editNote(note),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: Row(
+                      children: [
+                        if (note.isImportant)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Tooltip(
+                              message: 'Важная заметка',
+                              child: Icon(
+                                Icons.star,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            note.text,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Редактировать заметку $number',
+                onPressed: () => _editNote(note),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              IconButton(
+                tooltip: 'Удалить заметку $number',
+                onPressed: () => _deleteNote(note),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -109,9 +244,9 @@ class _NotesPageState extends State<NotesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _editingIndex == -1
+                    _editingNote == null
                         ? 'Новая заметка'
-                        : 'Редактирование заметки ${_editingIndex + 1}',
+                        : 'Редактирование заметки ${_notes.indexOf(_editingNote!) + 1}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -136,7 +271,7 @@ class _NotesPageState extends State<NotesPage> {
                         onPressed: _saveNote,
                         child: const Text('Сохранить'),
                       ),
-                      if (_editingIndex != -1) ...[
+                      if (_editingNote != null) ...[
                         const SizedBox(width: 8),
                         TextButton(
                           onPressed: _cancelEditing,
@@ -153,41 +288,20 @@ class _NotesPageState extends State<NotesPage> {
               'Список заметок (${_notes.length})',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+            if (_notes.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Нажатие — просмотр, двойное — важная, долгое — правка. '
+                'Свайп влево — удалить, вправо — снять важность.',
+              ),
+            ],
             const SizedBox(height: 12),
             if (_notes.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: Text('Пока нет заметок')),
               ),
-            for (int i = 0; i < _notes.length; i++)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _editingIndex == i
-                        ? Colors.teal
-                        : Colors.grey.shade300,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(_notes[i])),
-                    IconButton(
-                      tooltip: 'Редактировать заметку ${i + 1}',
-                      onPressed: () => _editNote(i),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Удалить заметку ${i + 1}',
-                      onPressed: () => _deleteNote(i),
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
-                ),
-              ),
+            for (int i = 0; i < _notes.length; i++) _noteCard(_notes[i], i + 1),
           ],
         ),
       ),
