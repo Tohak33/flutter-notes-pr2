@@ -10,6 +10,38 @@ Future<void> addNote(WidgetTester tester, String text) async {
 }
 
 void main() {
+  testWidgets('Карточка плавно появляется и сворачивается при удалении', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const NotesApp());
+    const note = 'Заметка с анимацией';
+    await tester.enterText(find.byType(TextField), note);
+    await tester.tap(find.text('Сохранить'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    double cardSize() {
+      final transition = find.ancestor(
+        of: find.text(note),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is SizeTransition && widget.axis == Axis.vertical,
+        ),
+      );
+      return tester.widget<SizeTransition>(transition.first).sizeFactor.value;
+    }
+
+    expect(cardSize(), allOf(greaterThan(0), lessThan(1)));
+    await tester.pumpAndSettle();
+    expect(cardSize(), 1);
+
+    await tester.tap(find.byTooltip('Удалить заметку 1'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 210));
+    expect(cardSize(), allOf(greaterThan(0), lessThan(1)));
+    await tester.pumpAndSettle();
+    expect(find.text(note), findsNothing);
+  });
+
   testWidgets('Одиночное нажатие открывает полный текст заметки', (
     tester,
   ) async {
